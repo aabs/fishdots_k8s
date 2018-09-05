@@ -1,2 +1,0 @@
-#!/usr/bin/env fish
-abbr --add k8s 'eval $HOME/etc/kubectl/prod-01.sh'
