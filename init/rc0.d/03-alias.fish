@@ -1,5 +1,1 @@
-function git --wraps git
-  hub $argv
-end
-
-abbr --add lg lazygit
+abbr --add k_pods 'kubectl --all-namespaces get pods'

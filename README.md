@@ -1,3 +1,3 @@
-# Fishdots Git Plugin
+# Fishdots Kubernetes Plugin
 
-Simple plugin to fishdots for setting up aliases relating to git.
+Simple plugin to fishdots for setting up aliases relating to Kubernetes.
