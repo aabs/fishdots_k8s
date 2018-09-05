@@ -1,3 +1,9 @@
 #!/usr/bin/env fish
 
-abbr --add kubectl '$HOME/etc/kubectl/prod-01.sh'
+function k8s 
+  pushd .
+  cd $HOME/etc/kubectl/
+  ./prod-01.sh $argv
+  popd
+end
+
