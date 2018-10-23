@@ -13,6 +13,9 @@ function vsparc
     case proxy
         vsparc_proxy_pod $argv[2] $argv[3] $argv[4]
 
+    case kmgr
+        vsparc_proxy_kafkamgr
+
     case pgadmin
         vsparc_proxy_pgadmin_dashboard
 
@@ -46,6 +49,10 @@ function vsparc_help -d "display usage info"
 
   echo "vsparc proxy"
   echo "  creates a proxy from the local port to the remote port on the named pod"
+  echo ""
+
+  echo "vsparc kmgr"
+  echo "  creates a proxy to allow the use of kafka manager"
   echo ""
 
   echo "vsparc pgadmin"
@@ -83,8 +90,20 @@ function vsparc_proxy_k8s_dashboard
   vsparc_proxy_pod "$podname" 9092 9090 'kube-system'
 end
 
+function vsparc_proxy_kafkamgr
+  set -l depname (k8s get deploy -n vsparc | grep "kafka-manager" | cut -d' ' -f 1)
+  set -l podname (k8s get pod -n vsparc -o json | jq -r ".items[].metadata.name | select(contains(\"$depname\"))")
+  vsparc_proxy_pod "$podname" 16668 80 'vsparc'
+end
+
+
 function vsparc_proxy_pgadmin_dashboard
   set -l depname (k8s get deploy -n vsparc | grep "timescale-admin" | cut -d' ' -f 1)
   set -l podname (k8s get pod -n vsparc -o json | jq -r ".items[].metadata.name | select(contains(\"$depname\"))")
   vsparc_proxy_pod "$podname" 16667 80 'vsparc'
+end
+
+function vsparc_get_ls2ts_pod_name
+  set -l podname (k8s get pod -n vsparc -o json | jq -r ".items[].metadata.name | select(contains(\"vsparc-tsdb-logstash-deployment\"))")
+  echo $podname
 end
