@@ -16,6 +16,9 @@ function vsparc
     case kmgr
         vsparc_proxy_kafkamgr
 
+    case grafana
+        vsparc_proxy_grafana
+
     case pgadmin
         vsparc_proxy_pgadmin_dashboard
 
@@ -43,16 +46,20 @@ function vsparc_help -d "display usage info"
   echo "  get a list of the pods in thge vsparc namespace"
   echo ""
 
-  echo "vsparc logs"
+  echo "vsparc logs <pod name>"
   echo "  get logs for selected pod"
   echo ""
 
-  echo "vsparc proxy"
+  echo "vsparc proxy <port here> <port there> <pod name>"
   echo "  creates a proxy from the local port to the remote port on the named pod"
   echo ""
 
   echo "vsparc kmgr"
   echo "  creates a proxy to allow the use of kafka manager"
+  echo ""
+
+  echo "vsparc grafana"
+  echo "  creates a proxy to allow the use of grafana"
   echo ""
 
   echo "vsparc pgadmin"
@@ -96,6 +103,12 @@ function vsparc_proxy_kafkamgr
   vsparc_proxy_pod "$podname" 16668 80 'vsparc'
 end
 
+
+function vsparc_proxy_grafana
+  set -l depname (k8s get deploy -n timescaledb | grep "grafana" | cut -d' ' -f 1)
+  set -l podname (k8s get pod -n timescaledb -o json | jq -r ".items[].metadata.name | select(contains(\"$depname\"))")
+  vsparc_proxy_pod "$podname" 16669 3000 'timescaledb'
+end
 
 function vsparc_proxy_pgadmin_dashboard
   set -l depname (k8s get deploy -n vsparc | grep "timescale-admin" | cut -d' ' -f 1)
