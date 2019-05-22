@@ -22,8 +22,9 @@ function k8s
     case logs;    k8s_logs $argv[2]
     case pgadmin; k8s_proxy_pgadmin_dashboard
     case pod;     get_all_pods | grep $argv[2]
+    case podx;    describe_pod $argv[2]
     case pods;    get_all_pods 
-    case proxy;   k8s_proxy_pod $argv[2] $argv[3] $argv[4] $argv[5]
+    case proxy;   proxy $argv[2] $argv[3] $argv[4]
     case sshkill; kill_all_ssh_tunnels_featuring_port $argv[2]
     case shell;   k8s_shell $argv[2] $argv[3]
     case swenv;   k8s_switch_env $argv[2]
@@ -62,6 +63,7 @@ function k8s_help -d "display usage info"
   display_option 'pgadmin' 'create a proxy to allow use of pgadmin'
   display_option 'pod' 'get main k8s relay pod'
   display_option 'pods' 'get a list of the pods in the k8s namespace'
+  display_option 'proxy' '<podname> <port here> <port there> creates a proxy from the local port to the remote port on the named pod'
   display_option 'psql' 'run psql on the chosen kind of postgres instance (primary or replica)'
   display_option 'shell <pod> <container>' 'open a shell in the container matching the pod'
   display_option 'swenv' 'switch env'
@@ -71,7 +73,7 @@ end
 complete -c k8s -x -a pod -d 'get main k8s relay pod'
 complete -c k8s -x -a pods -d 'get a list of the pods in the k8s namespace'
 complete -c k8s -x -a logs -d 'get logs for selected pod'
-complete -c k8s -x -a proxy -d ' <podname> <port here> <port there> <namespace> creates a proxy from the local port to the remote port on the named pod'
+complete -c k8s -x -a proxy -d ' <podname> <port here> <port there> creates a proxy from the local port to the remote port on the named pod'
 complete -c k8s -x -a kmgr -d 'create a proxy to allow use of kafka manager'
 complete -c k8s -x -a grafana -d 'create a proxy to allow use of grafana'
 complete -c k8s -x -a pgadmin -d 'create a proxy to allow use of pgadmin'
@@ -84,7 +86,7 @@ complete -c k8s -x -a ns -d 'display current namespace'
 
 function k8s_switch_env -a new_env -d "switch deployment environments"
   # use a validator to ensure no bogus env names are used
-  if test \( $new_env = "dev" \) -o \( $new_env = "uat" \) -o \( $new_env = "prod" \)
+  if test \( $new_env = "dev" \) -o \( $new_env = "uat" \) -o \( $new_env = "test" \) -o \( $new_env = "prod" \)
     set -U K8S_ENV $new_env
   end
 end
@@ -108,6 +110,9 @@ function get_ssh_host -d "look up, based on target deployment env, where we shou
   if test $K8S_ENV = "local"
     echo lok8stln01
   end
+  if test $K8S_ENV = "test"
+    echo nsstltlb22
+  end
   if test $K8S_ENV = "dev"
     echo root@nsda3tldv10 
   end
@@ -123,6 +128,12 @@ function k8s_logs -a pattern
   set -l pod (get_pod_name $pattern)
   set -l ns (get_pod_ns $pattern)
   ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl logs $pod -n $ns 
+end
+
+function describe_pod -a pattern
+  set -l name (get_pod_name $pattern | command head -n 1)
+  set -l ns (get_pod_ns $pattern | command head -n 1)
+  ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl get pod $name -n $ns -o=yaml
 end
 
 function get_pod_details
@@ -155,8 +166,9 @@ end
 ####################################################################################
 ##############################[PROXYING COMMON APPS]################################
 ####################################################################################
-function k8s_proxy_pod -a podname localport remoteport ns
+function k8s_proxy -a podname localport remoteport
   set -l host (get_ssh_host)
+  set -l ns (get_pod_ns $podname | command head -n 1)
   set -l podip (get_pod_ip $podname | command head -n 1)
   echo "proxying $podname $localport $remoteport $ns"
   ssh -L \*:$localport:$podip:$remoteport $host -N
@@ -164,27 +176,27 @@ end
 
 function k8s_proxy_k8s_dashboard
 	set -l pattern dashboard
-	k8s_proxy_pod $pattern 7010 9090 (get_pod_ns $pattern)
+	k8s_proxy $pattern 7010 9090 
 end
 
 function k8s_proxy_kafkamgr
 	set -l pattern 'kafka-manager'
-	k8s_proxy_pod $pattern 7011 80 (get_pod_ns $pattern)
+	k8s_proxy $pattern 7011 80
 end
 
 function k8s_proxy_grafana
 	set -l pattern 'grafana'
-	k8s_proxy_pod $pattern 7012 3000 (get_pod_ns $pattern)
+	k8s_proxy $pattern 7012 3000
 end
 
 function k8s_proxy_pgadmin_dashboard
 	set -l pattern 'timescale-admin'
-	k8s_proxy_pod $pattern 7013 80 (get_pod_ns $pattern)
+	k8s_proxy $pattern 7013 80
 end
 
 function k8s_proxy_kafka
 	set -l pattern 'es-kafka'
-	k8s_proxy_pod $pattern 7014 80 (get_pod_ns $pattern)
+	k8s_proxy $pattern 7014 80
 end
 
 function k8s_shell -a pod container -d 'open a shell on the target container'
