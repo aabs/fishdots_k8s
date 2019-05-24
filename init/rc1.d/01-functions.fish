@@ -86,7 +86,7 @@ complete -c k8s -x -a ns -d 'display current namespace'
 
 function k8s_switch_env -a new_env -d "switch deployment environments"
   # use a validator to ensure no bogus env names are used
-  if test \( $new_env = "dev" \) -o \( $new_env = "uat" \) -o \( $new_env = "test" \) -o \( $new_env = "prod" \)
+  if test \( $new_env = "dev" \) -o \( $new_env = "uat" \) -o \( $new_env = "test" \) -o \( $new_env = "prod" \) -o \( $new_env = "local" \)
     set -U K8S_ENV $new_env
   end
 end
