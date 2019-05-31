@@ -37,7 +37,7 @@ end
 
 
 function kill_all_ssh_tunnels_featuring_port -a port
-  ps --forest ax | grep ssh | grep $port | string trim -l|cut -d' ' -f 1| xargs kill
+  ps --forest ax | grep ssh | grep $port | awk '{print $1;}'| xargs kill
 end
 
 function display_option -a name desc
@@ -65,6 +65,7 @@ function k8s_help -d "display usage info"
   display_option 'pods' 'get a list of the pods in the k8s namespace'
   display_option 'proxy' '<podname> <port here> <port there> creates a proxy from the local port to the remote port on the named pod'
   display_option 'psql' 'run psql on the chosen kind of postgres instance (primary or replica)'
+  display_option 'sshkill <port>' 'kill any proxies listening on port provided'
   display_option 'shell <pod> <container>' 'open a shell in the container matching the pod'
   display_option 'swenv' 'switch env'
   display_option 'swns' 'switch namespace'
@@ -77,6 +78,7 @@ complete -c k8s -x -a proxy -d ' <podname> <port here> <port there> creates a pr
 complete -c k8s -x -a kmgr -d 'create a proxy to allow use of kafka manager'
 complete -c k8s -x -a grafana -d 'create a proxy to allow use of grafana'
 complete -c k8s -x -a pgadmin -d 'create a proxy to allow use of pgadmin'
+complete -c k8s -x -a sshkill -d 'kill ssh proxies listening on port'
 complete -c k8s -x -a swenv -d 'switch env'
 complete -c k8s -x -a swns -d 'switch namespace'
 complete -c k8s -x -a k8s -d 'create a proxy to allow use of k8s dashboard'
@@ -127,7 +129,7 @@ end
 function k8s_logs -a pattern
   set -l pod (get_pod_name $pattern)
   set -l ns (get_pod_ns $pattern)
-  ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl logs $pod -n $ns 
+  ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl logs $pod -n $ns
 end
 
 function describe_pod -a pattern
@@ -197,6 +199,14 @@ end
 function k8s_proxy_kafka
 	set -l pattern 'es-kafka'
 	k8s_proxy $pattern 7014 80
+end
+
+function k8s_proxy_postgresql -a clusterName spiloRole
+  set -l svcClusterIP (ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl get svc --all-namespaces 2> /dev/null \
+  | grep "$clusterName-$spiloRole" \
+  | awk '{ print $4; }')
+  echo "proxying $clusterName-$spiloRole"
+  ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) -L \*:5432:$svcClusterIP:5432 -N
 end
 
 function k8s_shell -a pod container -d 'open a shell on the target container'
