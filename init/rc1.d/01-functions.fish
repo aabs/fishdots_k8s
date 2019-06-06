@@ -35,6 +35,11 @@ function k8s
   end
 end
 
+function _kc -a verb resource  -d 'helper function to pipe the named manifest to the default API host using the given k8s verb'
+  echo "$resource ==> " (get_ssh_host)
+  cat $resource  | ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl $verb -f -
+end
+
 
 function kill_all_ssh_tunnels_featuring_port -a port
   ps --forest ax | grep ssh | grep $port | awk '{print $1;}'| xargs kill
@@ -215,3 +220,31 @@ function k8s_shell -a pod container -d 'open a shell on the target container'
   ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl exec -i -t -n $podns $podname -c $container -- /bin/bash -l
 end
 
+function k8s_set_hosts -d 'sets up variables for things like docker registries and volume management' 
+  set -e volume_hosts; set -e registry_hosts; set -e k8s_master_nodes
+  switch $K8S_ENV
+    case local
+      set -U k8s_master_nodes "lok8stln01"
+      set -U registry_hosts "lok8stln01"
+      set -U volume_hosts "lok8stln01" "lok8stln02" "lok8stln03" "lok8stln04"
+    case test
+      set -U k8s_master_nodes "nsstltlb22"
+      set -U registry_hosts "nsstltlb19" "nsstltlb20"
+      set -U volume_hosts "nsstltlb19" "nsstltlb20" "nsstltlb21" "nsstltlb22" "nsstltlb23"
+    case dev
+      set -U k8s_master_nodes "root@nsda3tldv10"
+      set -U registry_hosts "root@nsda3tldv10" "root@nsda3tldv11" "root@nsda3tldv12"
+      set -U volume_hosts  "root@nsda3tldv10" "root@nsda3tldv11" "root@nsda3tldv12"
+    case uat
+      set -U k8s_master_nodes "root@nsda3bpltb01"
+      set -U registry_hosts "root@nsda3bpltb01" "root@nsda3bpltb02" "root@nsda3bpltb03"
+      set -U volume_hosts "root@nsda3bpltb01" "root@nsda3bpltb02" "root@nsda3bpltb03"
+    case prod
+      set -U k8s_master_nodes "root@nsstltlb01"
+      set -U registry_hosts "root@nsstltlb01" "root@nsstltlb02" "root@nsstltlb03"
+      # TODO: there may be more, of these... vvv
+      set -U volume_hosts "root@nsstltlb01" "root@nsstltlb02" "root@nsstltlb03"
+  end
+end
+
+k8s_set_hosts
