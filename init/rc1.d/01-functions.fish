@@ -1,13 +1,5 @@
 #!/usr/bin/env fish
 
-if not set -q K8S_ENV
-  set -U K8S_ENV local
-end
-
-if not set -q K8S_NS
-  set -U K8S_NS (whoami)
-end
-
 
 function k8s
   if test 0 -eq (count $argv)
@@ -24,7 +16,7 @@ function k8s
     case pod;     get_all_pods | grep $argv[2]
     case podx;    describe_pod $argv[2]
     case pods;    get_all_pods 
-    case proxy;   proxy $argv[2] $argv[3] $argv[4]
+    case proxy;   k8s_proxy $argv[2] $argv[3] $argv[4]
     case sshkill; kill_all_ssh_tunnels_featuring_port $argv[2]
     case shell;   k8s_shell $argv[2] $argv[3]
     case swenv;   k8s_switch_env $argv[2]
@@ -40,10 +32,6 @@ function _kc -a verb resource  -d 'helper function to pipe the named manifest to
   cat $resource  | ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl $verb -f -
 end
 
-
-function kill_all_ssh_tunnels_featuring_port -a port
-  ps --forest ax | grep ssh | grep $port | awk '{print $1;}'| xargs kill
-end
 
 function display_option -a name desc
   echo "k8s $name"
@@ -76,24 +64,9 @@ function k8s_help -d "display usage info"
   display_option 'swns' 'switch namespace'
 end
 
-complete -c k8s -x -a pod -d 'get main k8s relay pod'
-complete -c k8s -x -a pods -d 'get a list of the pods in the k8s namespace'
-complete -c k8s -x -a logs -d 'get logs for selected pod'
-complete -c k8s -x -a proxy -d ' <podname> <port here> <port there> creates a proxy from the local port to the remote port on the named pod'
-complete -c k8s -x -a kmgr -d 'create a proxy to allow use of kafka manager'
-complete -c k8s -x -a grafana -d 'create a proxy to allow use of grafana'
-complete -c k8s -x -a pgadmin -d 'create a proxy to allow use of pgadmin'
-complete -c k8s -x -a sshkill -d 'kill ssh proxies listening on port'
-complete -c k8s -x -a swenv -d 'switch env'
-complete -c k8s -x -a swns -d 'switch namespace'
-complete -c k8s -x -a k8s -d 'create a proxy to allow use of k8s dashboard'
-complete -c k8s -x -a help -d 'this...'
-complete -c k8s -x -a env -d 'display current deployment env'
-complete -c k8s -x -a ns -d 'display current namespace' 
-
 function k8s_switch_env -a new_env -d "switch deployment environments"
   # use a validator to ensure no bogus env names are used
-  if test \( $new_env = "dev" \) -o \( $new_env = "uat" \) -o \( $new_env = "test" \) -o \( $new_env = "prod" \) -o \( $new_env = "local" \)
+  if test \( $new_env = "dev" \) -o \( $new_env = "uat" \) -o \( $new_env = "test" \) -o \( $new_env = "prod" \) -o \( $new_env = "prod2" \) -o \( $new_env = "local" \)
     set -U K8S_ENV $new_env
   end
 end
@@ -129,6 +102,9 @@ function get_ssh_host -d "look up, based on target deployment env, where we shou
   if test $K8S_ENV = "prod"
     echo root@nsstltlb01 
   end
+  if test $K8S_ENV = "prod2"
+    echo nsstltlb13
+  end
 end
 
 function k8s_logs -a pattern
@@ -137,114 +113,3 @@ function k8s_logs -a pattern
   ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl logs $pod -n $ns
 end
 
-function describe_pod -a pattern
-  set -l name (get_pod_name $pattern | command head -n 1)
-  set -l ns (get_pod_ns $pattern | command head -n 1)
-  ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl get pod $name -n $ns -o=yaml
-end
-
-function get_pod_details
-  ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl get pods -n $K8S_NS -o=custom-columns=name:.metadata.name,podIP:.status.podIP,hostIP:.status.hostIP
-end
-
-function get_all_pods
-  ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl get pods -o=custom-columns=namespace:.metadata.namespace,name:.metadata.name,podIP:.status.podIP,hostIP:.status.hostIP --all-namespaces
-end
-
-function get_pod_ns -a pattern
-  get_all_pods | grep $pattern | awk '{print $1;}'
-end
-
-
-function get_pod_name -a pattern
-  get_all_pods | grep $pattern | awk '{print $2;}'
-end
-
-
-function get_pod_ip -a pattern
-  get_all_pods | grep $pattern | awk '{print $3;}'
-end
-
-function get_pod_hostip -a pattern
-  get_all_pods | grep $pattern | awk '{print $4;}'
-end
-
-
-####################################################################################
-##############################[PROXYING COMMON APPS]################################
-####################################################################################
-function k8s_proxy -a podname localport remoteport
-  set -l host (get_ssh_host)
-  set -l ns (get_pod_ns $podname | command head -n 1)
-  set -l podip (get_pod_ip $podname | command head -n 1)
-  echo "proxying $podname $localport $remoteport $ns"
-  ssh -L \*:$localport:$podip:$remoteport $host -N
-end
-
-function k8s_proxy_k8s_dashboard
-	set -l pattern dashboard
-	k8s_proxy $pattern 7010 9090 
-end
-
-function k8s_proxy_kafkamgr
-	set -l pattern 'kafka-manager'
-	k8s_proxy $pattern 7011 80
-end
-
-function k8s_proxy_grafana
-	set -l pattern 'grafana'
-	k8s_proxy $pattern 7012 3000
-end
-
-function k8s_proxy_pgadmin_dashboard
-	set -l pattern 'timescale-admin'
-	k8s_proxy $pattern 7013 80
-end
-
-function k8s_proxy_kafka
-	set -l pattern 'es-kafka'
-	k8s_proxy $pattern 7014 80
-end
-
-function k8s_proxy_postgresql -a clusterName spiloRole
-  set -l svcClusterIP (ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl get svc --all-namespaces 2> /dev/null \
-  | grep "$clusterName-$spiloRole" \
-  | awk '{ print $4; }')
-  echo "proxying $clusterName-$spiloRole"
-  ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) -L \*:5432:$svcClusterIP:5432 -N
-end
-
-function k8s_shell -a pod container -d 'open a shell on the target container'
-  set -l podname (get_pod_name $pod)
-  set -l podns (get_pod_ns $pod)
-  ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=off (get_ssh_host) kubectl exec -i -t -n $podns $podname -c $container -- /bin/bash -l
-end
-
-function k8s_set_hosts -d 'sets up variables for things like docker registries and volume management' 
-  set -e volume_hosts; set -e registry_hosts; set -e k8s_master_nodes
-  switch $K8S_ENV
-    case local
-      set -U k8s_master_nodes "lok8stln01"
-      set -U registry_hosts "lok8stln01"
-      set -U volume_hosts "lok8stln01" "lok8stln02" "lok8stln03" "lok8stln04"
-    case test
-      set -U k8s_master_nodes "nsstltlb22"
-      set -U registry_hosts "nsstltlb19" "nsstltlb20"
-      set -U volume_hosts "nsstltlb19" "nsstltlb20" "nsstltlb21" "nsstltlb22" "nsstltlb23"
-    case dev
-      set -U k8s_master_nodes "root@nsda3tldv10"
-      set -U registry_hosts "root@nsda3tldv10" "root@nsda3tldv11" "root@nsda3tldv12"
-      set -U volume_hosts  "root@nsda3tldv10" "root@nsda3tldv11" "root@nsda3tldv12"
-    case uat
-      set -U k8s_master_nodes "root@nsda3bpltb01"
-      set -U registry_hosts "root@nsda3bpltb01" "root@nsda3bpltb02" "root@nsda3bpltb03"
-      set -U volume_hosts "root@nsda3bpltb01" "root@nsda3bpltb02" "root@nsda3bpltb03"
-    case prod
-      set -U k8s_master_nodes "root@nsstltlb01"
-      set -U registry_hosts "root@nsstltlb01" "root@nsstltlb02" "root@nsstltlb03"
-      # TODO: there may be more, of these... vvv
-      set -U volume_hosts "root@nsstltlb01" "root@nsstltlb02" "root@nsstltlb03"
-  end
-end
-
-k8s_set_hosts

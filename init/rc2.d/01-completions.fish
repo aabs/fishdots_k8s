@@ -1,7 +1,1 @@
-complete -c vsparc -x -a pods -d 'get a list of the running pods'
-complete -c vsparc -x -a logs -d 'get logs for named pod'
-complete -c vsparc -x -a k8s -d 'proxy the k8s dashboard'
-complete -c vsparc -x -a pgadmin -d 'proxy the pgadmin dashboard'
-complete -c vsparc -x -a grafana -d 'proxy the grafana dashboard'
-complete -c vsparc -x -a kmgr -d 'proxy the kafka manager'
-complete -c vsparc -x -a tsdb -d 'proxy timescale'
+complete -c k8s -x -a "pod pods logs proxy kmgr grafana pgadmin sshkill swenv swns k8s help env"
